@@ -3,7 +3,7 @@ import { useKeyStats } from "../hooks/useStats";
 import { KeyboardLayout } from "../components/heatmap/KeyboardLayout";
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local timezone
 }
 
 export function Heatmap() {

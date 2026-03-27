@@ -16,7 +16,7 @@ export function useTodayStats(intervalMs = 2000) {
 }
 
 function isToday(date: string) {
-  return date === new Date().toISOString().slice(0, 10);
+  return date === new Date().toLocaleDateString("en-CA");
 }
 
 export function useKeyStats(date: string) {

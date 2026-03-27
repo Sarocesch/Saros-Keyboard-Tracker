@@ -3,7 +3,7 @@ import { useMouseStats } from "../hooks/useStats";
 import { StatCard } from "../components/stats/StatCard";
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local timezone
 }
 
 const BUTTON_LABELS: Record<string, string> = {
