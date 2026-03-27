@@ -94,4 +94,10 @@ The workflow builds a Windows `.exe` installer and attaches it to a GitHub Relea
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+Apache 2.0 — see [LICENSE](LICENSE)
+
+---
+
+## Contributing
+
+PRs and issues are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.

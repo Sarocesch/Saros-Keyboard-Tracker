@@ -5,7 +5,7 @@ use crate::state::DbPool;
 use parking_lot::Mutex;
 use rusqlite::Connection;
 use std::sync::Arc;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 pub fn init_db(app: &AppHandle) -> Result<DbPool, Box<dyn std::error::Error>> {
     let data_dir = app

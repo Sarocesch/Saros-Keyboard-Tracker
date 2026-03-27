@@ -109,7 +109,7 @@ export function Settings() {
             rel="noreferrer"
             className="text-purple-400 hover:underline"
           >
-            GitHub — Open Source (MIT)
+            GitHub — Open Source
           </a>
         </div>
       </div>

@@ -1,7 +1,7 @@
 use crate::{db::queries, state::AppState};
 use rdev::{listen, Button, EventType, Key};
 use std::{
-    sync::{mpsc, Arc},
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
@@ -62,7 +62,7 @@ pub fn start(app: AppHandle) {
         .expect("failed to spawn writer thread");
 }
 
-fn flush_batch(state: &Arc<AppState>, batch: &mut Vec<InputEvent>) {
+fn flush_batch(state: &tauri::State<'_, AppState>, batch: &mut Vec<InputEvent>) {
     if batch.is_empty() {
         return;
     }

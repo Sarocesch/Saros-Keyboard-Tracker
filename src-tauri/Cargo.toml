@@ -3,7 +3,6 @@ name = "saros-keyboard-tracker"
 version = "0.1.0"
 description = "Saros Keyboard Tracker — global input statistics"
 authors = ["Sarocesch"]
-license = "MIT"
 edition = "2021"
 
 [lib]
