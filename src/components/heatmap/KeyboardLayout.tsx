@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { KEYBOARD_LAYOUT, KEY_UNIT_PX, KEY_GAP_PX } from "../../lib/keymap";
+import { KEYBOARD_LAYOUT } from "../../lib/keymap";
 import { normalizeKeyStats } from "../../lib/colors";
 import { KeyCap } from "./KeyCap";
 import type { KeyCount } from "../../types/stats";
