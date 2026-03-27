@@ -1,4 +1,5 @@
 use tauri::{
+    image::Image,
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     App, Manager,
@@ -14,17 +15,15 @@ pub fn build_tray(app: &mut App) -> tauri::Result<()> {
         .items(&[&open, &hide, &sep, &quit])
         .build()?;
 
+    // Load icon directly from bundled bytes — avoids runtime None panic
+    let icon = Image::from_bytes(include_bytes!("../../icons/32x32.png"))?;
+
     TrayIconBuilder::with_id("main-tray")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
         .menu(&menu)
         .tooltip("Saros Keyboard Tracker")
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "open" => {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
-            }
+            "open" => show_window(app),
             "hide" => {
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.hide();
@@ -33,19 +32,26 @@ pub fn build_tray(app: &mut App) -> tauri::Result<()> {
             "quit" => app.exit(0),
             _ => {}
         })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::DoubleClick {
+        .on_tray_icon_event(|tray, event| match event {
+            // Single left-click OR double-click both open the window
+            TrayIconEvent::Click {
                 button: MouseButton::Left,
                 ..
-            } = event
-            {
-                if let Some(w) = tray.app_handle().get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
             }
+            | TrayIconEvent::DoubleClick {
+                button: MouseButton::Left,
+                ..
+            } => show_window(tray.app_handle()),
+            _ => {}
         })
         .build(app)?;
 
     Ok(())
+}
+
+fn show_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
 }
