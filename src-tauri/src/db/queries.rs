@@ -95,3 +95,41 @@ pub fn delete_all(conn: &Connection) -> Result<()> {
     conn.execute_batch("DELETE FROM key_counts; DELETE FROM mouse_counts;")?;
     Ok(())
 }
+
+/// Returns (total_keypresses, left_clicks, right_clicks, middle_clicks) for a given date.
+/// Used to restore session counters after restart.
+pub fn get_today_counts(conn: &Connection, date: &str) -> Result<(u64, u64, u64, u64)> {
+    let keypresses: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(count), 0) FROM key_counts WHERE date = ?1",
+            rusqlite::params![date],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+
+    let left: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(count), 0) FROM mouse_counts WHERE date = ?1 AND button = 'Left'",
+            rusqlite::params![date],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+
+    let right: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(count), 0) FROM mouse_counts WHERE date = ?1 AND button = 'Right'",
+            rusqlite::params![date],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+
+    let middle: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(count), 0) FROM mouse_counts WHERE date = ?1 AND button = 'Middle'",
+            rusqlite::params![date],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+
+    Ok((keypresses as u64, left as u64, right as u64, middle as u64))
+}

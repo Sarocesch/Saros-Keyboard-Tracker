@@ -15,12 +15,20 @@ export function useTodayStats(intervalMs = 2000) {
   return stats;
 }
 
+function isToday(date: string) {
+  return date === new Date().toISOString().slice(0, 10);
+}
+
 export function useKeyStats(date: string) {
   const [stats, setStats] = useState<KeyCount[]>([]);
 
   useEffect(() => {
     if (!date) return;
-    getKeyStats(date).then(setStats).catch(console.error);
+    const fetch = () => getKeyStats(date).then(setStats).catch(console.error);
+    fetch();
+    // Poll every 3s for today so heatmap updates live; less often for past dates
+    const id = setInterval(fetch, isToday(date) ? 3000 : 30000);
+    return () => clearInterval(id);
   }, [date]);
 
   return stats;
@@ -31,7 +39,10 @@ export function useMouseStats(date: string) {
 
   useEffect(() => {
     if (!date) return;
-    getMouseStats(date).then(setStats).catch(console.error);
+    const fetch = () => getMouseStats(date).then(setStats).catch(console.error);
+    fetch();
+    const id = setInterval(fetch, isToday(date) ? 3000 : 30000);
+    return () => clearInterval(id);
   }, [date]);
 
   return stats;

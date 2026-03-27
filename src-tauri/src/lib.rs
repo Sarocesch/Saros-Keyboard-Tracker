@@ -6,9 +6,10 @@ mod tray;
 
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::sync::atomic::Ordering;
 use tauri::Manager;
 
-fn log_to_file(msg: &str) {
+pub fn log_to_file(msg: &str) {
     let log_path = std::env::temp_dir().join("saros-tracker-startup.log");
     if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
         let ts = chrono::Local::now().format("%H:%M:%S%.3f");
@@ -18,7 +19,6 @@ fn log_to_file(msg: &str) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Overwrite log on each fresh start
     let log_path = std::env::temp_dir().join("saros-tracker-startup.log");
     let _ = std::fs::write(&log_path, "");
     log_to_file("=== Saros Keyboard Tracker starting ===");
@@ -42,34 +42,39 @@ pub fn run() {
             // Step 1: Database
             log_to_file("setup: initializing database");
             let db_pool = match db::init_db(app.handle()) {
-                Ok(pool) => {
-                    log_to_file("setup: database OK");
-                    pool
-                }
-                Err(e) => {
-                    log_to_file(&format!("setup: database FAILED: {e}"));
-                    return Err(e.to_string().into());
-                }
+                Ok(pool) => { log_to_file("setup: database OK"); pool }
+                Err(e) => { log_to_file(&format!("setup: database FAILED: {e}")); return Err(e.to_string().into()); }
             };
-            app.manage(state::AppState::new(db_pool));
 
-            // Step 2: Tray icon
+            // Step 2: Restore today's session counters from DB so data survives restarts
+            log_to_file("setup: restoring session counters from DB");
+            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+            let (keys, left, right, middle) = {
+                let conn = db_pool.lock();
+                db::queries::get_today_counts(&conn, &today).unwrap_or((0, 0, 0, 0))
+            };
+            log_to_file(&format!("setup: restored keys={keys} left={left} right={right} middle={middle}"));
+
+            let app_state = state::AppState::new(db_pool);
+            app_state.session_keypresses.store(keys, Ordering::Relaxed);
+            app_state.session_left_clicks.store(left, Ordering::Relaxed);
+            app_state.session_right_clicks.store(right, Ordering::Relaxed);
+            app_state.session_middle_clicks.store(middle, Ordering::Relaxed);
+            app.manage(app_state);
+
+            // Step 3: Tray icon
             log_to_file("setup: building tray icon");
             match tray::menu::build_tray(app) {
                 Ok(_) => log_to_file("setup: tray OK"),
-                Err(e) => {
-                    // Tray failure is logged but does NOT abort startup —
-                    // the user can still use the app via the window
-                    log_to_file(&format!("setup: tray FAILED (non-fatal): {e}"));
-                }
+                Err(e) => log_to_file(&format!("setup: tray FAILED (non-fatal): {e}")),
             }
 
-            // Step 3: Input hooks
+            // Step 4: Input hooks
             log_to_file("setup: starting input hooks");
             hooks::input_hook::start(app.handle().clone());
             log_to_file("setup: input hook threads spawned");
 
-            // Step 4: Show window explicitly
+            // Step 5: Show window
             log_to_file("setup: showing main window");
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
