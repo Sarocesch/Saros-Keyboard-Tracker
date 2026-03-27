@@ -21,7 +21,17 @@ A lightweight, privacy-first Windows 11 app that counts every keypress and mouse
 
 ## Screenshots
 
-> *(Add screenshots here after first launch)*
+| Dashboard | Heatmap |
+|:---------:|:-------:|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Heatmap](docs/screenshots/heatmap.png) |
+
+| Mouse Stats | Daily Reports |
+|:-----------:|:-------------:|
+| ![Mouse Stats](docs/screenshots/mouse-stats.png) | ![Daily Reports](docs/screenshots/reports.png) |
+
+| Settings |
+|:--------:|
+| ![Settings](docs/screenshots/settings.png) |
 
 ---
 

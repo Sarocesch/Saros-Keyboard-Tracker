@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useKeyStats } from "../hooks/useStats";
 import { KeyboardLayout } from "../components/heatmap/KeyboardLayout";
+import { KEYBOARD_LAYOUT } from "../lib/keymap";
+
+const RDEV_TO_LABEL = Object.fromEntries(
+  KEYBOARD_LAYOUT.map((k) => [k.rdevName, k.label])
+);
 
 function todayStr() {
   return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local timezone
@@ -41,11 +46,13 @@ export function Heatmap() {
 
       {stats.length > 0 && (
         <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-5">
-          <h2 className="text-sm uppercase tracking-widest text-slate-400 mb-3">Top 10 Keys</h2>
+          <h2 className="text-sm uppercase tracking-widest text-slate-400 mb-3">All Keys ({stats.length})</h2>
           <div className="flex flex-col gap-2">
-            {stats.slice(0, 10).map((k) => (
+            {stats.map((k) => (
               <div key={k.key_name} className="flex items-center gap-3">
-                <span className="w-20 text-xs font-mono text-slate-300 truncate">{k.key_name}</span>
+                <span className="w-24 text-xs font-mono text-slate-300 truncate">
+                  {RDEV_TO_LABEL[k.key_name] ?? k.key_name}
+                </span>
                 <div className="flex-1 bg-[#1e1e3a] rounded-full h-2 overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-purple-600 to-pink-500 rounded-full transition-all duration-500"
