@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMouseStats } from "../hooks/useStats";
 import { StatCard } from "../components/stats/StatCard";
+import { useTheme } from "../context/ThemeContext";
 
 function todayStr() {
   return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local timezone
@@ -17,6 +18,7 @@ function cssVar(name: string) {
 }
 
 export function MouseStats() {
+  useTheme(); // re-render when theme switches so cssVar() picks up new colors
   const [date, setDate] = useState(todayStr());
   const stats = useMouseStats(date);
 
