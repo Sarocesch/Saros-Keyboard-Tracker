@@ -3,6 +3,8 @@ import { KEYBOARD_LAYOUT } from "../../lib/keymap";
 import { normalizeKeyStats } from "../../lib/colors";
 import { useTheme } from "../../context/ThemeContext";
 import { KeyCap } from "./KeyCap";
+import { NavCluster } from "./NavCluster";
+import { NumpadLayout } from "./NumpadLayout";
 import type { KeyCount } from "../../types/stats";
 
 interface KeyboardLayoutProps {
@@ -27,20 +29,29 @@ export function KeyboardLayout({ stats }: KeyboardLayoutProps) {
   }, []);
 
   return (
-    <div className="flex flex-col gap-[3px] w-fit">
-      {rows.map(([rowIdx, keys]) => (
-        <div key={rowIdx} className="flex gap-[3px]">
-          {keys.map((keyDef) => (
-            <KeyCap
-              key={keyDef.rdevName}
-              keyDef={keyDef}
-              normalizedValue={normalized.get(keyDef.rdevName) ?? 0}
-              count={countMap.get(keyDef.rdevName) ?? 0}
-              theme={theme}
-            />
-          ))}
-        </div>
-      ))}
+    <div className="flex gap-4 w-fit items-start">
+      {/* Main keyboard */}
+      <div className="flex flex-col gap-[3px]">
+        {rows.map(([rowIdx, keys]) => (
+          <div key={rowIdx} className="flex gap-[3px]">
+            {keys.map((keyDef) => (
+              <KeyCap
+                key={keyDef.rdevName}
+                keyDef={keyDef}
+                normalizedValue={normalized.get(keyDef.rdevName) ?? 0}
+                count={countMap.get(keyDef.rdevName) ?? 0}
+                theme={theme}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Navigation cluster */}
+      <NavCluster normalized={normalized} counts={countMap} theme={theme} />
+
+      {/* Numpad */}
+      <NumpadLayout normalized={normalized} counts={countMap} theme={theme} />
     </div>
   );
 }
