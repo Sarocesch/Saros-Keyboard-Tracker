@@ -8,5 +8,6 @@ export const getDailyTotals = (days: number) => invoke<DailyTotal[]>("get_daily_
 export const setAutostart = (enabled: boolean) => invoke<void>("set_autostart", { enabled });
 export const getAutostartEnabled = () => invoke<boolean>("get_autostart_enabled");
 export const resetAllData = () => invoke<void>("reset_all_data");
-export const getTrackingPaused = () => invoke<boolean>("get_tracking_paused");
+export type TrackingStatus = { manual: boolean; game: boolean };
+export const getTrackingPaused = () => invoke<TrackingStatus>("get_tracking_paused");
 export const setTrackingPaused = (paused: boolean) => invoke<void>("set_tracking_paused", { paused });

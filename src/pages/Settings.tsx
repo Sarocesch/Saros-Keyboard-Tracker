@@ -181,7 +181,7 @@ export function Settings() {
 
       <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-5 text-xs text-slate-500 space-y-1">
         <div className="font-medium text-slate-400 mb-2">About</div>
-        <div>Saros Keyboard Tracker v0.4.0</div>
+        <div>Saros Keyboard Tracker v0.5.0</div>
         <div>All data is stored locally on your machine.</div>
         <div>No network connections are made.</div>
         <div className="pt-1">

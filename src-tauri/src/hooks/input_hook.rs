@@ -10,26 +10,140 @@ use std::{
 };
 use tauri::{AppHandle, Manager};
 
-/// Global pause flag — set to `true` to make the hook callback a no-op.
-/// Using a module-level static so the rdev callback (which is `'static`)
-/// can read it without needing to capture AppState.
+/// Manual pause — toggled by the user via UI or tray menu.
 static PAUSED: AtomicBool = AtomicBool::new(false);
+
+/// Auto-pause — set automatically by the fullscreen watcher when a
+/// borderless/exclusive fullscreen window (game) is in the foreground.
+/// Kept separate so manual pause and auto-pause don't interfere.
+static AUTO_PAUSED: AtomicBool = AtomicBool::new(false);
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/// True when tracking is suppressed for any reason (manual OR game mode).
+pub fn is_paused() -> bool {
+    PAUSED.load(Ordering::Relaxed) || AUTO_PAUSED.load(Ordering::Relaxed)
+}
+
+/// Only the manual pause flag — used by the UI toggle button.
+pub fn is_manually_paused() -> bool {
+    PAUSED.load(Ordering::Relaxed)
+}
+
+/// True when the auto-pause (game mode) is active.
+pub fn is_game_mode_paused() -> bool {
+    AUTO_PAUSED.load(Ordering::Relaxed)
+}
 
 pub fn set_paused(paused: bool) {
     PAUSED.store(paused, Ordering::Relaxed);
-    log_to_file(&format!("tracking: paused={paused}"));
-}
-
-pub fn is_paused() -> bool {
-    PAUSED.load(Ordering::Relaxed)
+    log_to_file(&format!("tracking: manual paused={paused}"));
 }
 
 pub fn toggle_paused() -> bool {
     let was = PAUSED.fetch_xor(true, Ordering::Relaxed);
     let now = !was;
-    log_to_file(&format!("tracking: toggled → paused={now}"));
+    log_to_file(&format!("tracking: toggled → manual paused={now}"));
     now
 }
+
+// ── Fullscreen detection (Windows only) ──────────────────────────────────────
+
+/// Returns true when the foreground window covers the entire monitor AND
+/// has no title bar — i.e. a fullscreen or borderless-fullscreen game.
+#[cfg(windows)]
+fn is_foreground_fullscreen() -> bool {
+    use std::mem;
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowLongPtrW, GetWindowRect,
+    };
+
+    // WS_CAPTION = 0x00C00000 — present on all normal titled windows.
+    // Fullscreen (exclusive or borderless) game windows don't have it.
+    const WS_CAPTION: u32 = 0x00C0_0000;
+    const GWL_STYLE: i32 = -16;
+
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return false;
+        }
+
+        // Quickly reject normal windows / maximised app windows
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+        if style & WS_CAPTION != 0 {
+            return false;
+        }
+
+        let mut wr: RECT = mem::zeroed();
+        if GetWindowRect(hwnd, &mut wr) == 0 {
+            return false;
+        }
+
+        let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        let mut mi: MONITORINFO = mem::zeroed();
+        mi.cbSize = mem::size_of::<MONITORINFO>() as u32;
+        if GetMonitorInfoW(hmon, &mut mi) == 0 {
+            return false;
+        }
+
+        let mr = mi.rcMonitor;
+        wr.left <= mr.left && wr.top <= mr.top && wr.right >= mr.right && wr.bottom >= mr.bottom
+    }
+}
+
+#[cfg(not(windows))]
+fn is_foreground_fullscreen() -> bool {
+    false
+}
+
+/// Spawns a background thread that polls every 2 seconds for a fullscreen
+/// window and flips AUTO_PAUSED accordingly. Updates the tray tooltip too.
+pub fn start_fullscreen_watcher(app: AppHandle) {
+    thread::Builder::new()
+        .name("fullscreen-watcher".into())
+        .spawn(move || {
+            // Let everything settle before we start polling
+            thread::sleep(Duration::from_secs(4));
+            log_to_file("fullscreen-watcher: started polling");
+
+            loop {
+                thread::sleep(Duration::from_secs(2));
+
+                let was_auto = AUTO_PAUSED.load(Ordering::Relaxed);
+                let now_fullscreen = is_foreground_fullscreen();
+
+                if now_fullscreen == was_auto {
+                    continue; // No change
+                }
+
+                AUTO_PAUSED.store(now_fullscreen, Ordering::Relaxed);
+                log_to_file(&format!(
+                    "fullscreen-watcher: game_mode={}",
+                    now_fullscreen
+                ));
+
+                // Update tray tooltip to reflect the new state
+                if let Some(tray) = app.tray_by_id("main-tray") {
+                    let tooltip = if now_fullscreen {
+                        "Saros Keyboard Tracker — Game Mode (auto-paused)"
+                    } else if PAUSED.load(Ordering::Relaxed) {
+                        "Saros Keyboard Tracker — Tracking Paused"
+                    } else {
+                        "Saros Keyboard Tracker"
+                    };
+                    let _ = tray.set_tooltip(Some(tooltip));
+                }
+            }
+        })
+        .expect("failed to spawn fullscreen-watcher thread");
+}
+
+// ── Input event types ─────────────────────────────────────────────────────────
 
 #[derive(Debug)]
 enum InputEvent {
@@ -37,13 +151,12 @@ enum InputEvent {
     MouseClick(Button),
 }
 
+// ── Hook startup ──────────────────────────────────────────────────────────────
+
 pub fn start(app: AppHandle) {
     let (tx, rx) = mpsc::channel::<InputEvent>();
 
     // Thread 1: rdev global hook (WH_KEYBOARD_LL / WH_MOUSE_LL)
-    // Runs in a dedicated OS thread with its own Windows message pump.
-    // Auto-restarts if listen() ever returns (Windows can evict hooks that
-    // are slow to process; the restart loop makes the tracker resilient).
     let tx_hook = tx.clone();
     thread::Builder::new()
         .name("rdev-hook".into())
@@ -60,13 +173,12 @@ pub fn start(app: AppHandle) {
                     restart_count + 1
                 ));
 
-                // Each iteration of the loop needs its own clone so the
-                // closure can capture it by move.
                 let tx2 = tx_hook.clone();
                 let result = listen(move |event| {
-                    // Return immediately when paused — keeps the callback
-                    // as fast as possible so Windows never evicts the hook.
-                    if PAUSED.load(Ordering::Relaxed) {
+                    // Return immediately when paused (manual or auto).
+                    // Keeping the callback as fast as possible prevents
+                    // Windows from evicting the hook due to timeout.
+                    if PAUSED.load(Ordering::Relaxed) || AUTO_PAUSED.load(Ordering::Relaxed) {
                         return;
                     }
                     match event.event_type {
@@ -90,7 +202,7 @@ pub fn start(app: AppHandle) {
         })
         .expect("failed to spawn rdev thread");
 
-    // Thread 2: batch writer — flushes to SQLite every 500ms
+    // Thread 2: batch writer — flushes to SQLite every 500 ms
     thread::Builder::new()
         .name("input-writer".into())
         .spawn(move || {
@@ -113,9 +225,10 @@ pub fn start(app: AppHandle) {
 
                 if !batch.is_empty() {
                     total_events += batch.len() as u64;
-                    // Log first few events to confirm global hook works
                     if total_events <= 5 {
-                        log_to_file(&format!("rdev: first events received (total so far: {total_events})"));
+                        log_to_file(&format!(
+                            "rdev: first events received (total so far: {total_events})"
+                        ));
                     }
                     flush_batch(&state, &mut batch);
                     last_flush = Instant::now();
@@ -140,15 +253,23 @@ fn flush_batch(state: &tauri::State<'_, AppState>, batch: &mut Vec<InputEvent>) 
             InputEvent::KeyPress(key) => {
                 let key_name = format!("{:?}", key);
                 let _ = queries::upsert_key_count(&db, &today, &key_name);
-                state.session_keypresses.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                state
+                    .session_keypresses
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             InputEvent::MouseClick(btn) => {
                 let btn_name = format!("{:?}", btn);
                 let _ = queries::upsert_mouse_count(&db, &today, &btn_name);
                 match btn {
-                    Button::Left => state.session_left_clicks.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-                    Button::Right => state.session_right_clicks.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-                    Button::Middle => state.session_middle_clicks.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                    Button::Left => state
+                        .session_left_clicks
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                    Button::Right => state
+                        .session_right_clicks
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                    Button::Middle => state
+                        .session_middle_clicks
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
                     _ => 0,
                 };
             }

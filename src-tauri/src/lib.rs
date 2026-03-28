@@ -69,9 +69,10 @@ pub fn run() {
                 Err(e) => log_to_file(&format!("setup: tray FAILED (non-fatal): {e}")),
             }
 
-            // Step 4: Input hooks
+            // Step 4: Input hooks + fullscreen (game-mode) watcher
             log_to_file("setup: starting input hooks");
             hooks::input_hook::start(app.handle().clone());
+            hooks::input_hook::start_fullscreen_watcher(app.handle().clone());
             log_to_file("setup: input hook threads spawned");
 
             // Step 5: Show window — but NOT when launched by autostart (--hidden flag)
