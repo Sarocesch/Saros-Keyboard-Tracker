@@ -22,38 +22,38 @@ export function DailyReport() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-4">
+        <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-4">
           <div className="text-xs uppercase tracking-widest text-slate-400">Total Keys (30d)</div>
-          <div className="text-2xl font-bold text-purple-300 mt-1">{totalKeys.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-[var(--th-accent-light)] mt-1">{totalKeys.toLocaleString()}</div>
         </div>
-        <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-4">
+        <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-4">
           <div className="text-xs uppercase tracking-widest text-slate-400">Total Clicks (30d)</div>
           <div className="text-2xl font-bold text-blue-300 mt-1">{totalClicks.toLocaleString()}</div>
         </div>
-        <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-4">
+        <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-4">
           <div className="text-xs uppercase tracking-widest text-slate-400">Best Day</div>
           <div className="text-2xl font-bold text-pink-300 mt-1">{bestDay?.date?.slice(5) ?? "—"}</div>
         </div>
       </div>
 
-      <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-5">
+      <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-5">
         <h2 className="text-sm uppercase tracking-widest text-slate-400 mb-4">
           Keys + Clicks per Day
         </h2>
         <DailyBarChart data={totals} />
       </div>
 
-      <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-5">
+      <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-5">
         <h2 className="text-sm uppercase tracking-widest text-slate-400 mb-3">Day-by-Day</h2>
         <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
           {[...totals].reverse().map((d) => (
             <div
               key={d.date}
-              className="flex items-center justify-between py-2 border-b border-[#1e1e3a] last:border-0 text-sm"
+              className="flex items-center justify-between py-2 border-b border-[var(--th-border)] last:border-0 text-sm"
             >
               <span className="text-slate-300 font-mono">{d.date}</span>
               <div className="flex gap-6">
-                <span className="text-purple-300">{d.total_keypresses.toLocaleString()} keys</span>
+                <span className="text-[var(--th-accent-light)]">{d.total_keypresses.toLocaleString()} keys</span>
                 <span className="text-blue-300">{d.total_clicks.toLocaleString()} clicks</span>
               </div>
             </div>

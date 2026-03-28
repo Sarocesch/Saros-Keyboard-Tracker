@@ -25,10 +25,10 @@ export function TitleBar() {
   return (
     <div
       data-tauri-drag-region
-      className="h-10 bg-[#0d0d1a] border-b border-[#1e1e3a] flex items-center justify-between px-4 select-none shrink-0"
+      className="h-10 bg-[var(--th-bg-surface)] border-b border-[var(--th-border)] flex items-center justify-between px-4 select-none shrink-0"
     >
       <div className="flex items-center gap-2 pointer-events-none">
-        <Keyboard size={16} className="text-purple-400" />
+        <Keyboard size={16} style={{ color: "var(--th-accent-muted)" }} />
         <span className="text-sm font-semibold text-white">Saros Keyboard Tracker</span>
       </div>
       <div className="flex items-center gap-1">

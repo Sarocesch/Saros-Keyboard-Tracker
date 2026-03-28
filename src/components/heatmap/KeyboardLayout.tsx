@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { KEYBOARD_LAYOUT } from "../../lib/keymap";
 import { normalizeKeyStats } from "../../lib/colors";
+import { useTheme } from "../../context/ThemeContext";
 import { KeyCap } from "./KeyCap";
 import type { KeyCount } from "../../types/stats";
 
@@ -9,6 +10,7 @@ interface KeyboardLayoutProps {
 }
 
 export function KeyboardLayout({ stats }: KeyboardLayoutProps) {
+  const { theme } = useTheme();
   const normalized = useMemo(() => normalizeKeyStats(stats), [stats]);
   const countMap = useMemo(
     () => new Map(stats.map((s) => [s.key_name, s.count])),
@@ -34,6 +36,7 @@ export function KeyboardLayout({ stats }: KeyboardLayoutProps) {
               keyDef={keyDef}
               normalizedValue={normalized.get(keyDef.rdevName) ?? 0}
               count={countMap.get(keyDef.rdevName) ?? 0}
+              theme={theme}
             />
           ))}
         </div>

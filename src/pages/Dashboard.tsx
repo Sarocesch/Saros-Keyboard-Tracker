@@ -18,7 +18,7 @@ export function Dashboard() {
           label="Keypresses"
           value={stats?.total_keypresses ?? 0}
           icon="⌨️"
-          color="purple"
+          color="accent"
         />
         <StatCard
           label="Mouse Clicks"
@@ -40,7 +40,7 @@ export function Dashboard() {
         />
       </div>
 
-      <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-5">
+      <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-5">
         <h2 className="text-sm uppercase tracking-widest text-slate-400 mb-4">
           Total inputs today
         </h2>

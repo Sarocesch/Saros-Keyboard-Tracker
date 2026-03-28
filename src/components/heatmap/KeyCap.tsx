@@ -1,16 +1,18 @@
 import { getHeatColor, getGlowStyle } from "../../lib/colors";
 import { KEY_UNIT_PX, KEY_GAP_PX } from "../../lib/keymap";
 import type { KeyDef } from "../../lib/keymap";
+import type { Theme } from "../../context/ThemeContext";
 
 interface KeyCapProps {
   keyDef: KeyDef;
   normalizedValue: number;
   count: number;
+  theme?: Theme;
 }
 
-export function KeyCap({ keyDef, normalizedValue, count }: KeyCapProps) {
-  const bg = getHeatColor(normalizedValue);
-  const glow = getGlowStyle(normalizedValue);
+export function KeyCap({ keyDef, normalizedValue, count, theme = "default" }: KeyCapProps) {
+  const bg = getHeatColor(normalizedValue, theme);
+  const glow = getGlowStyle(normalizedValue, theme);
   const width = keyDef.widthUnits * KEY_UNIT_PX + (keyDef.widthUnits - 1) * KEY_GAP_PX;
 
   return (

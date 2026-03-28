@@ -1,14 +1,54 @@
 @import "tailwindcss";
 
+/* ── Default theme (purple) ─────────────────────────────────── */
+:root {
+  --th-bg-base:         #0a0a14;
+  --th-bg-surface:      #0d0d1a;
+  --th-bg-card:         #111122;
+  --th-border:          #1e1e3a;
+  --th-accent:          #7c3aed;
+  --th-accent-dim:      rgba(124, 58, 237, 0.27);
+  --th-accent-muted:    #a78bfa;
+  --th-accent-light:    #c084fc;
+  --th-active-bg:       rgba(124, 58, 237, 0.2);
+  --th-active-border:   rgba(139, 92, 246, 0.3);
+  --th-active-text:     #c084fc;
+  --th-grad-from:       #7c3aed;
+  --th-grad-to:         #ec4899;
+  --th-bar-keys:        #7c3aed;
+  --th-bar-clicks:      #3b82f6;
+  --th-scrollbar:       #7c3aed;
+}
+
+/* ── Saros theme (orange) ───────────────────────────────────── */
+[data-theme="saros"] {
+  --th-bg-base:         #0f0800;
+  --th-bg-surface:      #130900;
+  --th-bg-card:         #1c0f00;
+  --th-border:          #2e1a00;
+  --th-accent:          #c2410c;
+  --th-accent-dim:      rgba(194, 65, 12, 0.27);
+  --th-accent-muted:    #fb923c;
+  --th-accent-light:    #fdba74;
+  --th-active-bg:       rgba(194, 65, 12, 0.2);
+  --th-active-border:   rgba(234, 88, 12, 0.3);
+  --th-active-text:     #fdba74;
+  --th-grad-from:       #ea580c;
+  --th-grad-to:         #f59e0b;
+  --th-bar-keys:        #ea580c;
+  --th-bar-clicks:      #d97706;
+  --th-scrollbar:       #ea580c;
+}
+
 @layer base {
   * {
     scrollbar-width: thin;
-    scrollbar-color: #7c3aed #111122;
+    scrollbar-color: var(--th-scrollbar) var(--th-bg-card);
     box-sizing: border-box;
   }
 
   body {
-    background: #0a0a14;
+    background: var(--th-bg-base);
     color: #e2e8f0;
     font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
     -webkit-font-smoothing: antialiased;

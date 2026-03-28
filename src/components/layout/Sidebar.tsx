@@ -11,7 +11,7 @@ const nav = [
 
 export function Sidebar() {
   return (
-    <aside className="w-16 lg:w-52 bg-[#0d0d1a] border-r border-[#1e1e3a] flex flex-col py-4 gap-1 shrink-0">
+    <aside className="w-16 lg:w-52 bg-[var(--th-bg-surface)] border-r border-[var(--th-border)] flex flex-col py-4 gap-1 shrink-0">
       {nav.map(({ to, icon: Icon, label }) => (
         <NavLink
           key={to}
@@ -20,9 +20,18 @@ export function Sidebar() {
           className={({ isActive }) =>
             `flex items-center gap-3 px-4 py-3 mx-2 rounded-lg text-sm font-medium transition-all duration-150 ${
               isActive
-                ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
+                ? "border"
                 : "text-slate-400 hover:bg-white/5 hover:text-white"
             }`
+          }
+          style={({ isActive }) =>
+            isActive
+              ? {
+                  background: "var(--th-active-bg)",
+                  color: "var(--th-active-text)",
+                  borderColor: "var(--th-active-border)",
+                }
+              : {}
           }
         >
           <Icon size={18} className="shrink-0" />

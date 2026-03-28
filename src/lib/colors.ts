@@ -1,18 +1,47 @@
-export function getHeatColor(normalized: number): string {
-  if (normalized === 0) return "rgb(20, 20, 35)";
-  if (normalized < 0.05) return "rgb(25, 30, 60)";
-  if (normalized < 0.15) return "rgb(35, 50, 120)";
-  if (normalized < 0.3) return "rgb(55, 85, 190)";
-  if (normalized < 0.5) return "rgb(100, 65, 210)";
-  if (normalized < 0.7) return "rgb(160, 45, 225)";
-  if (normalized < 0.9) return "rgb(200, 60, 240)";
-  return "rgb(230, 120, 255)";
+import type { Theme } from "../context/ThemeContext";
+
+const defaultColors = [
+  "rgb(20, 20, 35)",
+  "rgb(25, 30, 60)",
+  "rgb(35, 50, 120)",
+  "rgb(55, 85, 190)",
+  "rgb(100, 65, 210)",
+  "rgb(160, 45, 225)",
+  "rgb(200, 60, 240)",
+  "rgb(230, 120, 255)",
+];
+
+const sarosColors = [
+  "rgb(25, 10, 0)",
+  "rgb(50, 22, 0)",
+  "rgb(100, 42, 0)",
+  "rgb(155, 62, 5)",
+  "rgb(195, 80, 10)",
+  "rgb(220, 105, 20)",
+  "rgb(240, 140, 40)",
+  "rgb(255, 195, 80)",
+];
+
+function getColors(theme: Theme) {
+  return theme === "saros" ? sarosColors : defaultColors;
 }
 
-export function getGlowStyle(normalized: number): string {
+export function getHeatColor(normalized: number, theme: Theme = "default"): string {
+  const c = getColors(theme);
+  if (normalized === 0)    return c[0];
+  if (normalized < 0.05)  return c[1];
+  if (normalized < 0.15)  return c[2];
+  if (normalized < 0.3)   return c[3];
+  if (normalized < 0.5)   return c[4];
+  if (normalized < 0.7)   return c[5];
+  if (normalized < 0.9)   return c[6];
+  return c[7];
+}
+
+export function getGlowStyle(normalized: number, theme: Theme = "default"): string {
   if (normalized < 0.05) return "none";
   const intensity = Math.round(normalized * 28);
-  const color = getHeatColor(normalized);
+  const color = getHeatColor(normalized, theme);
   return `0 0 ${intensity}px ${color}, 0 0 ${intensity * 2}px ${color}40`;
 }
 

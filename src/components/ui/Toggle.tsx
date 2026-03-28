@@ -9,8 +9,9 @@ export function Toggle({ checked, onChange, label }: ToggleProps) {
     <label className="flex items-center gap-3 cursor-pointer select-none">
       <div
         className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${
-          checked ? "bg-purple-600" : "bg-slate-700"
+          checked ? "" : "bg-slate-700"
         }`}
+        style={checked ? { background: "var(--th-accent)" } : {}}
         onClick={() => onChange(!checked)}
       >
         <div

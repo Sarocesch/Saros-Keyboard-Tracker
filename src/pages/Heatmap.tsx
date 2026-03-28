@@ -29,23 +29,23 @@ export function Heatmap() {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="bg-[#111122] border border-[#1e1e3a] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+          className="bg-[var(--th-bg-card)] border border-[var(--th-border)] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--th-accent)]"
         />
       </div>
 
       {topKey && (
         <div className="text-sm text-slate-400">
-          Most pressed: <span className="text-purple-300 font-bold">{topKey.key_name}</span>{" "}
+          Most pressed: <span className="text-[var(--th-accent-light)] font-bold">{topKey.key_name}</span>{" "}
           ({topKey.count.toLocaleString()}×)
         </div>
       )}
 
-      <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-6 overflow-x-auto">
+      <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-6 overflow-x-auto">
         <KeyboardLayout stats={stats} />
       </div>
 
       {stats.length > 0 && (
-        <div className="bg-[#111122] border border-[#1e1e3a] rounded-xl p-5">
+        <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-5">
           <h2 className="text-sm uppercase tracking-widest text-slate-400 mb-3">All Keys ({stats.length})</h2>
           <div className="flex flex-col gap-2">
             {stats.map((k) => (
@@ -55,7 +55,7 @@ export function Heatmap() {
                 </span>
                 <div className="flex-1 bg-[#1e1e3a] rounded-full h-2 overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-purple-600 to-pink-500 rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-[var(--th-grad-from)] to-[var(--th-grad-to)] rounded-full transition-all duration-500"
                     style={{ width: `${(k.count / (stats[0]?.count || 1)) * 100}%` }}
                   />
                 </div>

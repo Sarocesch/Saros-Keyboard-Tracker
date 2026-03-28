@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
+import { ThemeProvider } from "./context/ThemeContext";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { Dashboard } from "./pages/Dashboard";
@@ -10,8 +11,9 @@ import { Settings } from "./pages/Settings";
 
 export default function App() {
   return (
-    <HashRouter>
-      <div className="flex flex-col h-screen bg-[#0a0a14] text-white overflow-hidden">
+    <ThemeProvider>
+      <HashRouter>
+      <div className="flex flex-col h-screen bg-[var(--th-bg-base)] text-white overflow-hidden">
         <TitleBar />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
@@ -26,6 +28,7 @@ export default function App() {
           </main>
         </div>
       </div>
-    </HashRouter>
+      </HashRouter>
+    </ThemeProvider>
   );
 }
