@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
-import { getAutostartEnabled, setAutostart, resetAllData } from "../lib/tauri";
+import { useEffect, useRef, useState } from "react";
+import {
+  getAutostartEnabled,
+  setAutostart,
+  resetAllData,
+  getGameProcesses,
+  setGameProcesses,
+  resetGameProcesses,
+} from "../lib/tauri";
 import { Toggle } from "../components/ui/Toggle";
 import { useTheme } from "../context/ThemeContext";
 import type { Theme } from "../context/ThemeContext";
@@ -31,10 +38,45 @@ export function Settings() {
   const [autostart, setAutostartState] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
+  const [gameProcesses, setGameProcessesState] = useState<string[]>([]);
+  const [newProcess, setNewProcess] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getAutostartEnabled().then(setAutostartState).catch(console.error);
+    getGameProcesses().then(setGameProcessesState).catch(console.error);
   }, []);
+
+  const addProcess = async () => {
+    const trimmed = newProcess.trim().toLowerCase();
+    if (!trimmed) return;
+    const name = trimmed.endsWith(".exe") ? trimmed : trimmed + ".exe";
+    if (gameProcesses.includes(name)) { setNewProcess(""); return; }
+    const updated = [...gameProcesses, name];
+    try {
+      await setGameProcesses(updated);
+      setGameProcessesState(updated);
+      setNewProcess("");
+      inputRef.current?.focus();
+    } catch (e) { setStatusMsg("Failed: " + e); }
+  };
+
+  const removeProcess = async (proc: string) => {
+    const updated = gameProcesses.filter(p => p !== proc);
+    try {
+      await setGameProcesses(updated);
+      setGameProcessesState(updated);
+    } catch (e) { setStatusMsg("Failed: " + e); }
+  };
+
+  const handleResetProcesses = async () => {
+    try {
+      const defaults = await resetGameProcesses();
+      setGameProcessesState(defaults);
+      setStatusMsg("Game process list reset to defaults.");
+      setTimeout(() => setStatusMsg(""), 2500);
+    } catch (e) { setStatusMsg("Failed: " + e); }
+  };
 
   const handleAutostart = async (enabled: boolean) => {
     try {
@@ -153,6 +195,83 @@ export function Settings() {
         </div>
       </div>
 
+      {/* Game Mode — process-based auto-pause */}
+      <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-5">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-sm font-medium text-white">Game Mode</div>
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/30 leading-none">
+            AUTO-PAUSE
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 mb-4">
+          Tracking pauses automatically when one of these processes is the active window —
+          no matter if it's fullscreen or windowed.{" "}
+          <code className="text-slate-300 bg-white/5 px-1 rounded">javaw.exe</code> covers Minecraft Java.
+        </p>
+
+        {/* Process chips */}
+        <div className="flex flex-wrap gap-1.5 mb-3 min-h-[28px]">
+          {gameProcesses.length === 0 && (
+            <span className="text-xs text-slate-500 italic">No processes — fullscreen detection still active.</span>
+          )}
+          {gameProcesses.map((proc) => (
+            <div
+              key={proc}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg border text-xs"
+              style={{
+                background: "var(--th-bg-surface)",
+                borderColor: "var(--th-border)",
+                color: "#cbd5e1",
+              }}
+            >
+              <span className="font-mono">{proc}</span>
+              <button
+                onClick={() => removeProcess(proc)}
+                className="ml-1 text-slate-500 hover:text-red-400 transition-colors leading-none"
+                title={`Remove ${proc}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Add input */}
+        <div className="flex gap-2 mb-2">
+          <input
+            ref={inputRef}
+            value={newProcess}
+            onChange={(e) => setNewProcess(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addProcess()}
+            placeholder="game.exe"
+            className="flex-1 px-3 py-1.5 rounded-lg text-xs text-white outline-none transition-colors"
+            style={{
+              background: "var(--th-bg-surface)",
+              border: "1px solid var(--th-border)",
+            }}
+            onFocus={(e) =>
+              (e.currentTarget.style.borderColor = "var(--th-accent)")
+            }
+            onBlur={(e) =>
+              (e.currentTarget.style.borderColor = "var(--th-border)")
+            }
+          />
+          <button
+            onClick={addProcess}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-80"
+            style={{ background: "var(--th-accent)" }}
+          >
+            Add
+          </button>
+        </div>
+        <button
+          onClick={handleResetProcesses}
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          Reset to defaults
+        </button>
+      </div>
+
       <div className="bg-[var(--th-bg-card)] border border-red-900/30 rounded-xl p-5">
         <h2 className="text-sm font-medium text-red-400 mb-1">Danger Zone</h2>
         <p className="text-xs text-slate-400 mb-4">
@@ -181,7 +300,7 @@ export function Settings() {
 
       <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-xl p-5 text-xs text-slate-500 space-y-1">
         <div className="font-medium text-slate-400 mb-2">About</div>
-        <div>Saros Keyboard Tracker v0.5.0</div>
+        <div>Saros Keyboard Tracker v0.5.1</div>
         <div>All data is stored locally on your machine.</div>
         <div>No network connections are made.</div>
         <div className="pt-1">

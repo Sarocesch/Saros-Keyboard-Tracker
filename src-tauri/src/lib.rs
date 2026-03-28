@@ -69,7 +69,11 @@ pub fn run() {
                 Err(e) => log_to_file(&format!("setup: tray FAILED (non-fatal): {e}")),
             }
 
-            // Step 4: Input hooks + fullscreen (game-mode) watcher
+            // Step 4: Restore persisted game-process list (before starting hooks)
+            log_to_file("setup: loading game process list");
+            commands::settings::load_game_processes(app.handle());
+
+            // Step 4b: Input hooks + game-mode watcher
             log_to_file("setup: starting input hooks");
             hooks::input_hook::start(app.handle().clone());
             hooks::input_hook::start_fullscreen_watcher(app.handle().clone());
@@ -103,6 +107,9 @@ pub fn run() {
             commands::settings::reset_all_data,
             commands::settings::get_tracking_paused,
             commands::settings::set_tracking_paused,
+            commands::settings::get_game_processes,
+            commands::settings::set_game_processes,
+            commands::settings::reset_game_processes,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

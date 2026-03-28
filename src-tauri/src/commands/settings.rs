@@ -1,6 +1,7 @@
 use crate::{db::queries, hooks::input_hook, state::AppState};
 use tauri::State;
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_store::StoreExt;
 
 #[tauri::command]
 pub async fn set_autostart<R: tauri::Runtime>(
@@ -30,13 +31,15 @@ pub fn reset_all_data(state: State<AppState>) -> Result<(), String> {
     queries::delete_all(&db).map_err(|e| e.to_string())
 }
 
-/// Returned by `get_tracking_paused` so the frontend knows whether tracking
-/// is paused manually, automatically (game mode), or not at all.
+// ── Tracking pause ────────────────────────────────────────────────────────────
+
+/// Returned by `get_tracking_paused` so the frontend can distinguish between
+/// a manual pause and an automatic game-mode pause.
 #[derive(serde::Serialize)]
 pub struct TrackingStatus {
     /// True when the user manually paused via button or tray menu.
     pub manual: bool,
-    /// True when the fullscreen-watcher auto-paused because a game was detected.
+    /// True when the game-mode watcher auto-paused (game process in focus).
     pub game: bool,
 }
 
@@ -54,8 +57,6 @@ pub fn set_tracking_paused<R: tauri::Runtime>(
     paused: bool,
 ) -> Result<(), String> {
     input_hook::set_paused(paused);
-    // Only update the tooltip for the manual-pause case; game-mode tooltip is
-    // managed by the fullscreen watcher thread.
     if !input_hook::is_game_mode_paused() {
         if let Some(tray) = app.tray_by_id("main-tray") {
             let tooltip = if paused {
@@ -67,4 +68,51 @@ pub fn set_tracking_paused<R: tauri::Runtime>(
         }
     }
     Ok(())
+}
+
+// ── Game-process list ─────────────────────────────────────────────────────────
+
+const STORE_FILE: &str = "settings.json";
+const STORE_KEY_PROCESSES: &str = "game_processes";
+
+#[tauri::command]
+pub fn get_game_processes() -> Vec<String> {
+    input_hook::get_game_processes()
+}
+
+#[tauri::command]
+pub fn set_game_processes<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    processes: Vec<String>,
+) -> Result<(), String> {
+    input_hook::set_game_processes(processes.clone());
+    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
+    store.set(STORE_KEY_PROCESSES, serde_json::json!(processes));
+    store.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn reset_game_processes<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<Vec<String>, String> {
+    let defaults = input_hook::default_game_processes();
+    input_hook::set_game_processes(defaults.clone());
+    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
+    store.set(STORE_KEY_PROCESSES, serde_json::json!(defaults));
+    store.save().map_err(|e| e.to_string())?;
+    Ok(defaults)
+}
+
+/// Called once during app setup to restore the persisted game-process list.
+pub fn load_game_processes<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Ok(store) = app.store(STORE_FILE) {
+        if let Some(val) = store.get(STORE_KEY_PROCESSES) {
+            if let Ok(procs) = serde_json::from_value::<Vec<String>>(val) {
+                if !procs.is_empty() {
+                    input_hook::set_game_processes(procs);
+                }
+            }
+        }
+    }
 }

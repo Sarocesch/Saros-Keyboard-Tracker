@@ -1,36 +1,73 @@
 use crate::{db::queries, log_to_file, state::AppState};
+use parking_lot::RwLock;
 use rdev::{listen, Button, EventType, Key};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc,
+        mpsc, OnceLock,
     },
     thread,
     time::{Duration, Instant},
 };
 use tauri::{AppHandle, Manager};
 
-/// Manual pause — toggled by the user via UI or tray menu.
+// ── Pause flags ────────────────────────────────────────────────────────────────
+
+/// Manual pause — toggled by the user via UI button or tray menu.
 static PAUSED: AtomicBool = AtomicBool::new(false);
 
-/// Auto-pause — set automatically by the fullscreen watcher when a
-/// borderless/exclusive fullscreen window (game) is in the foreground.
-/// Kept separate so manual pause and auto-pause don't interfere.
+/// Auto-pause — set by the fullscreen/game-process watcher thread.
 static AUTO_PAUSED: AtomicBool = AtomicBool::new(false);
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Game-process list ─────────────────────────────────────────────────────────
 
-/// True when tracking is suppressed for any reason (manual OR game mode).
-pub fn is_paused() -> bool {
-    PAUSED.load(Ordering::Relaxed) || AUTO_PAUSED.load(Ordering::Relaxed)
+/// Runtime list of executable names (lowercase) that trigger auto-pause
+/// when they are the foreground window's process.
+static GAME_PROCESSES: OnceLock<RwLock<Vec<String>>> = OnceLock::new();
+
+fn game_processes() -> &'static RwLock<Vec<String>> {
+    GAME_PROCESSES.get_or_init(|| RwLock::new(default_game_processes()))
 }
 
-/// Only the manual pause flag — used by the UI toggle button.
+pub fn default_game_processes() -> Vec<String> {
+    vec![
+        "javaw.exe".into(),               // Minecraft Java + any Java game
+        "java.exe".into(),
+        "minecraft.windows.exe".into(),   // Minecraft Bedrock
+        "robloxplayerbeta.exe".into(),    // Roblox
+        "gta5.exe".into(),
+        "cs2.exe".into(),
+        "csgo.exe".into(),
+        "r5apex.exe".into(),              // Apex Legends
+        "escapefromtarkov.exe".into(),
+        "valorant-win64-shipping.exe".into(),
+        "fortnite.exe".into(),
+        "eldenring.exe".into(),
+        "sekiro.exe".into(),
+    ]
+}
+
+pub fn get_game_processes() -> Vec<String> {
+    game_processes().read().clone()
+}
+
+pub fn set_game_processes(processes: Vec<String>) {
+    let normalised: Vec<String> = processes
+        .into_iter()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let count = normalised.len();
+    *game_processes().write() = normalised;
+    log_to_file(&format!("game-processes: list updated ({count} entries)"));
+}
+
+// ── Public pause API ──────────────────────────────────────────────────────────
+
 pub fn is_manually_paused() -> bool {
     PAUSED.load(Ordering::Relaxed)
 }
 
-/// True when the auto-pause (game mode) is active.
 pub fn is_game_mode_paused() -> bool {
     AUTO_PAUSED.load(Ordering::Relaxed)
 }
@@ -47,23 +84,27 @@ pub fn toggle_paused() -> bool {
     now
 }
 
-// ── Fullscreen detection (Windows only) ──────────────────────────────────────
+// ── Fullscreen + process detection (Windows) ──────────────────────────────────
 
-/// Returns true when the foreground window covers the entire monitor AND
-/// has no title bar — i.e. a fullscreen or borderless-fullscreen game.
+/// Returns `true` when tracking should be auto-paused.
+/// Two triggers:
+///   1. The foreground window's process is in the game-process list.
+///   2. The foreground window has no title bar AND covers the full monitor
+///      (borderless / exclusive fullscreen game not in the list).
 #[cfg(windows)]
-fn is_foreground_fullscreen() -> bool {
+fn should_auto_pause() -> bool {
     use std::mem;
-    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::Graphics::Gdi::{
         GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
     };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowLongPtrW, GetWindowRect,
+        GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
     };
 
-    // WS_CAPTION = 0x00C00000 — present on all normal titled windows.
-    // Fullscreen (exclusive or borderless) game windows don't have it.
     const WS_CAPTION: u32 = 0x00C0_0000;
     const GWL_STYLE: i32 = -16;
 
@@ -73,13 +114,38 @@ fn is_foreground_fullscreen() -> bool {
             return false;
         }
 
-        // Quickly reject normal windows / maximised app windows
-        let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
-        if style & WS_CAPTION != 0 {
-            return false;
+        // ── Check 1: known game process? ──────────────────────────────────
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+
+        if pid != 0 {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if !handle.is_null() {
+                let mut buf = [0u16; 260];
+                let mut size: u32 = buf.len() as u32;
+                let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size);
+                CloseHandle(handle);
+
+                if ok != 0 {
+                    let path = String::from_utf16_lossy(&buf[..size as usize]);
+                    if let Some(exe) = path.rsplit(['\\', '/']).next() {
+                        let exe_lower = exe.to_lowercase();
+                        let procs = game_processes().read();
+                        if procs.iter().any(|g| *g == exe_lower) {
+                            return true;
+                        }
+                    }
+                }
+            }
         }
 
-        let mut wr: RECT = mem::zeroed();
+        // ── Check 2: fullscreen window without title bar? ─────────────────
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+        if style & WS_CAPTION != 0 {
+            return false; // Normal titled window — not a fullscreen game
+        }
+
+        let mut wr: windows_sys::Win32::Foundation::RECT = mem::zeroed();
         if GetWindowRect(hwnd, &mut wr) == 0 {
             return false;
         }
@@ -97,39 +163,34 @@ fn is_foreground_fullscreen() -> bool {
 }
 
 #[cfg(not(windows))]
-fn is_foreground_fullscreen() -> bool {
+fn should_auto_pause() -> bool {
     false
 }
 
-/// Spawns a background thread that polls every 2 seconds for a fullscreen
-/// window and flips AUTO_PAUSED accordingly. Updates the tray tooltip too.
+/// Spawns the background watcher thread. Polls every 2 seconds and flips
+/// `AUTO_PAUSED` when the result of `should_auto_pause()` changes.
 pub fn start_fullscreen_watcher(app: AppHandle) {
     thread::Builder::new()
-        .name("fullscreen-watcher".into())
+        .name("game-mode-watcher".into())
         .spawn(move || {
-            // Let everything settle before we start polling
             thread::sleep(Duration::from_secs(4));
-            log_to_file("fullscreen-watcher: started polling");
+            log_to_file("game-mode-watcher: started polling");
 
             loop {
                 thread::sleep(Duration::from_secs(2));
 
                 let was_auto = AUTO_PAUSED.load(Ordering::Relaxed);
-                let now_fullscreen = is_foreground_fullscreen();
+                let now_auto = should_auto_pause();
 
-                if now_fullscreen == was_auto {
-                    continue; // No change
+                if now_auto == was_auto {
+                    continue;
                 }
 
-                AUTO_PAUSED.store(now_fullscreen, Ordering::Relaxed);
-                log_to_file(&format!(
-                    "fullscreen-watcher: game_mode={}",
-                    now_fullscreen
-                ));
+                AUTO_PAUSED.store(now_auto, Ordering::Relaxed);
+                log_to_file(&format!("game-mode-watcher: auto_paused={now_auto}"));
 
-                // Update tray tooltip to reflect the new state
                 if let Some(tray) = app.tray_by_id("main-tray") {
-                    let tooltip = if now_fullscreen {
+                    let tooltip = if now_auto {
                         "Saros Keyboard Tracker — Game Mode (auto-paused)"
                     } else if PAUSED.load(Ordering::Relaxed) {
                         "Saros Keyboard Tracker — Tracking Paused"
@@ -140,7 +201,7 @@ pub fn start_fullscreen_watcher(app: AppHandle) {
                 }
             }
         })
-        .expect("failed to spawn fullscreen-watcher thread");
+        .expect("failed to spawn game-mode-watcher thread");
 }
 
 // ── Input event types ─────────────────────────────────────────────────────────
@@ -161,23 +222,15 @@ pub fn start(app: AppHandle) {
     thread::Builder::new()
         .name("rdev-hook".into())
         .spawn(move || {
-            // Give Tauri / WebView2 time to fully initialise before we
-            // install the global hook — avoids a race that can cause Windows
-            // to silently uninstall the hook right after install.
             thread::sleep(Duration::from_millis(800));
-
             let mut restart_count: u32 = 0;
             loop {
                 log_to_file(&format!(
-                    "rdev: installing WH_KEYBOARD_LL / WH_MOUSE_LL (attempt {})",
+                    "rdev: installing hooks (attempt {})",
                     restart_count + 1
                 ));
-
                 let tx2 = tx_hook.clone();
                 let result = listen(move |event| {
-                    // Return immediately when paused (manual or auto).
-                    // Keeping the callback as fast as possible prevents
-                    // Windows from evicting the hook due to timeout.
                     if PAUSED.load(Ordering::Relaxed) || AUTO_PAUSED.load(Ordering::Relaxed) {
                         return;
                     }
@@ -191,10 +244,9 @@ pub fn start(app: AppHandle) {
                         _ => {}
                     }
                 });
-
                 restart_count += 1;
                 log_to_file(&format!(
-                    "rdev: hook stopped after {} restarts — reason: {:?}. Restarting in 500 ms…",
+                    "rdev: hook stopped ({} restarts) — reason: {:?}. Restarting in 500 ms…",
                     restart_count, result
                 ));
                 thread::sleep(Duration::from_millis(500));
@@ -227,7 +279,7 @@ pub fn start(app: AppHandle) {
                     total_events += batch.len() as u64;
                     if total_events <= 5 {
                         log_to_file(&format!(
-                            "rdev: first events received (total so far: {total_events})"
+                            "rdev: first events (total so far: {total_events})"
                         ));
                     }
                     flush_batch(&state, &mut batch);
@@ -244,10 +296,8 @@ fn flush_batch(state: &tauri::State<'_, AppState>, batch: &mut Vec<InputEvent>) 
     if batch.is_empty() {
         return;
     }
-
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let db = state.db.lock();
-
     for event in batch.drain(..) {
         match event {
             InputEvent::KeyPress(key) => {
