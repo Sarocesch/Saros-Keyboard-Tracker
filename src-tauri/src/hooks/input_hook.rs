@@ -15,25 +15,47 @@ enum InputEvent {
 
 pub fn start(app: AppHandle) {
     let (tx, rx) = mpsc::channel::<InputEvent>();
-    let tx_clone = tx.clone();
 
     // Thread 1: rdev global hook (WH_KEYBOARD_LL / WH_MOUSE_LL)
-    // Must run on a dedicated OS thread — rdev creates its own Windows message pump
+    // Runs in a dedicated OS thread with its own Windows message pump.
+    // Auto-restarts if listen() ever returns (Windows can evict hooks that
+    // are slow to process; the restart loop makes the tracker resilient).
+    let tx_hook = tx.clone();
     thread::Builder::new()
         .name("rdev-hook".into())
         .spawn(move || {
-            log_to_file("rdev: hook thread started, installing WH_LL hooks...");
-            let result = listen(move |event| match event.event_type {
-                EventType::KeyPress(key) => {
-                    let _ = tx_clone.send(InputEvent::KeyPress(key));
-                }
-                EventType::ButtonPress(btn) => {
-                    let _ = tx_clone.send(InputEvent::MouseClick(btn));
-                }
-                _ => {}
-            });
-            // listen() only returns on error
-            log_to_file(&format!("rdev: hook STOPPED with error: {:?}", result));
+            // Give Tauri / WebView2 time to fully initialise before we
+            // install the global hook — avoids a race that can cause Windows
+            // to silently uninstall the hook right after install.
+            thread::sleep(Duration::from_millis(800));
+
+            let mut restart_count: u32 = 0;
+            loop {
+                log_to_file(&format!(
+                    "rdev: installing WH_KEYBOARD_LL / WH_MOUSE_LL (attempt {})",
+                    restart_count + 1
+                ));
+
+                // Each iteration of the loop needs its own clone so the
+                // closure can capture it by move.
+                let tx2 = tx_hook.clone();
+                let result = listen(move |event| match event.event_type {
+                    EventType::KeyPress(key) => {
+                        let _ = tx2.send(InputEvent::KeyPress(key));
+                    }
+                    EventType::ButtonPress(btn) => {
+                        let _ = tx2.send(InputEvent::MouseClick(btn));
+                    }
+                    _ => {}
+                });
+
+                restart_count += 1;
+                log_to_file(&format!(
+                    "rdev: hook stopped after {} restarts — reason: {:?}. Restarting in 500 ms…",
+                    restart_count, result
+                ));
+                thread::sleep(Duration::from_millis(500));
+            }
         })
         .expect("failed to spawn rdev thread");
 
