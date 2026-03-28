@@ -74,14 +74,19 @@ pub fn run() {
             hooks::input_hook::start(app.handle().clone());
             log_to_file("setup: input hook threads spawned");
 
-            // Step 5: Show window
-            log_to_file("setup: showing main window");
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-                log_to_file("setup: window shown");
+            // Step 5: Show window — but NOT when launched by autostart (--hidden flag)
+            let launched_hidden = std::env::args().any(|a| a == "--hidden");
+            log_to_file(&format!("setup: launched_hidden={launched_hidden}"));
+            if !launched_hidden {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    log_to_file("setup: window shown");
+                } else {
+                    log_to_file("setup: WARNING — main window not found");
+                }
             } else {
-                log_to_file("setup: WARNING — main window not found");
+                log_to_file("setup: autostart mode — window stays hidden in tray");
             }
 
             log_to_file("setup: complete");
