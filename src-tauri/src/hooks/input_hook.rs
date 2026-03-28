@@ -1,11 +1,35 @@
 use crate::{db::queries, log_to_file, state::AppState};
 use rdev::{listen, Button, EventType, Key};
 use std::{
-    sync::mpsc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     thread,
     time::{Duration, Instant},
 };
 use tauri::{AppHandle, Manager};
+
+/// Global pause flag — set to `true` to make the hook callback a no-op.
+/// Using a module-level static so the rdev callback (which is `'static`)
+/// can read it without needing to capture AppState.
+static PAUSED: AtomicBool = AtomicBool::new(false);
+
+pub fn set_paused(paused: bool) {
+    PAUSED.store(paused, Ordering::Relaxed);
+    log_to_file(&format!("tracking: paused={paused}"));
+}
+
+pub fn is_paused() -> bool {
+    PAUSED.load(Ordering::Relaxed)
+}
+
+pub fn toggle_paused() -> bool {
+    let was = PAUSED.fetch_xor(true, Ordering::Relaxed);
+    let now = !was;
+    log_to_file(&format!("tracking: toggled → paused={now}"));
+    now
+}
 
 #[derive(Debug)]
 enum InputEvent {
@@ -39,14 +63,21 @@ pub fn start(app: AppHandle) {
                 // Each iteration of the loop needs its own clone so the
                 // closure can capture it by move.
                 let tx2 = tx_hook.clone();
-                let result = listen(move |event| match event.event_type {
-                    EventType::KeyPress(key) => {
-                        let _ = tx2.send(InputEvent::KeyPress(key));
+                let result = listen(move |event| {
+                    // Return immediately when paused — keeps the callback
+                    // as fast as possible so Windows never evicts the hook.
+                    if PAUSED.load(Ordering::Relaxed) {
+                        return;
                     }
-                    EventType::ButtonPress(btn) => {
-                        let _ = tx2.send(InputEvent::MouseClick(btn));
+                    match event.event_type {
+                        EventType::KeyPress(key) => {
+                            let _ = tx2.send(InputEvent::KeyPress(key));
+                        }
+                        EventType::ButtonPress(btn) => {
+                            let _ = tx2.send(InputEvent::MouseClick(btn));
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 });
 
                 restart_count += 1;

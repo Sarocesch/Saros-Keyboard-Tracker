@@ -100,6 +100,8 @@ pub fn run() {
             commands::settings::set_autostart,
             commands::settings::get_autostart_enabled,
             commands::settings::reset_all_data,
+            commands::settings::get_tracking_paused,
+            commands::settings::set_tracking_paused,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
