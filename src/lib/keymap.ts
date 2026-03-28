@@ -72,7 +72,7 @@ export const KEYBOARD_LAYOUT: KeyDef[] = [
   { rdevName: "ControlLeft",  label: "Ctrl",  row: 4, col: 0,  widthUnits: 1.25 },
   { rdevName: "MetaLeft",     label: "Win",   row: 4, col: 1,  widthUnits: 1.25 },
   { rdevName: "Alt",          label: "Alt",   row: 4, col: 2,  widthUnits: 1.25 },
-  { rdevName: "Space",        label: " ",     row: 4, col: 3,  widthUnits: 6.25 },
+  { rdevName: "Space",        label: "Space", row: 4, col: 3,  widthUnits: 6.25 },
   { rdevName: "AltGr",        label: "AltGr", row: 4, col: 4,  widthUnits: 1.25 },
   { rdevName: "MetaRight",    label: "Win",   row: 4, col: 5,  widthUnits: 1.25 },
   { rdevName: "ControlRight", label: "Ctrl",  row: 4, col: 6,  widthUnits: 1.25 },

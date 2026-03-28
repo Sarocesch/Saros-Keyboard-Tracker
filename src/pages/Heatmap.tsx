@@ -3,9 +3,45 @@ import { useKeyStats } from "../hooks/useStats";
 import { KeyboardLayout } from "../components/heatmap/KeyboardLayout";
 import { KEYBOARD_LAYOUT } from "../lib/keymap";
 
-const RDEV_TO_LABEL = Object.fromEntries(
-  KEYBOARD_LAYOUT.map((k) => [k.rdevName, k.label])
-);
+const RDEV_TO_LABEL: Record<string, string> = {
+  // Auto-generated from KEYBOARD_LAYOUT
+  ...Object.fromEntries(KEYBOARD_LAYOUT.map((k) => [k.rdevName, k.label])),
+
+  // Function row
+  Escape: "Esc", F1: "F1", F2: "F2", F3: "F3", F4: "F4",
+  F5: "F5", F6: "F6", F7: "F7", F8: "F8", F9: "F9",
+  F10: "F10", F11: "F11", F12: "F12",
+
+  // Navigation cluster
+  PrintScreen: "PrtSc", ScrollLock: "ScrLk", Pause: "Pause",
+  Insert: "Insert", Home: "Home", PageUp: "PgUp",
+  Delete: "Delete", End: "End", PageDown: "PgDn",
+
+  // Arrow keys
+  UpArrow: "↑", DownArrow: "↓", LeftArrow: "←", RightArrow: "→",
+
+  // Numpad
+  NumLock: "NumLk",
+  Kp0: "Num 0", Kp1: "Num 1", Kp2: "Num 2", Kp3: "Num 3",
+  Kp4: "Num 4", Kp5: "Num 5", Kp6: "Num 6", Kp7: "Num 7",
+  Kp8: "Num 8", Kp9: "Num 9",
+  KpMinus: "Num -", KpPlus: "Num +",
+  KpMultiply: "Num *", KpDivide: "Num /",
+  KpDecimal: "Num .", KpReturn: "Num Enter",
+
+  // Media / extra
+  VolumeUp: "Vol ↑", VolumeDown: "Vol ↓", VolumeMute: "Mute",
+  MediaPlay: "▶ Play", MediaStop: "■ Stop",
+  MediaNextTrack: "⏭", MediaPrevTrack: "⏮",
+};
+
+/** Turn "Unknown(42)" → "Unknown #42", leave everything else as-is */
+function keyLabel(rdevName: string): string {
+  if (rdevName in RDEV_TO_LABEL) return RDEV_TO_LABEL[rdevName];
+  const m = rdevName.match(/^Unknown\((\d+)\)$/);
+  if (m) return `Unknown #${m[1]}`;
+  return rdevName;
+}
 
 function todayStr() {
   return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local timezone
@@ -35,7 +71,7 @@ export function Heatmap() {
 
       {topKey && (
         <div className="text-sm text-slate-400">
-          Most pressed: <span className="text-[var(--th-accent-light)] font-bold">{topKey.key_name}</span>{" "}
+          Most pressed: <span className="text-[var(--th-accent-light)] font-bold">{keyLabel(topKey.key_name)}</span>{" "}
           ({topKey.count.toLocaleString()}×)
         </div>
       )}
@@ -51,7 +87,7 @@ export function Heatmap() {
             {stats.map((k) => (
               <div key={k.key_name} className="flex items-center gap-3">
                 <span className="w-24 text-xs font-mono text-slate-300 truncate">
-                  {RDEV_TO_LABEL[k.key_name] ?? k.key_name}
+                  {keyLabel(k.key_name)}
                 </span>
                 <div className="flex-1 bg-[#1e1e3a] rounded-full h-2 overflow-hidden">
                   <div
